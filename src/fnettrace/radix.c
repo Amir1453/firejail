@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -25,12 +25,6 @@
 #include "radix.h"
 #include "fnettrace.h"
 
-typedef struct rnode_t {
-	struct rnode_t *zero;
-	struct rnode_t *one;
-	char *name;
-} RNode;
-
 RNode *head = 0;
 int radix_nodes = 0;
 
@@ -55,10 +49,14 @@ static RNode *rmalloc(void) {
 static inline char *duplicate_name(const char *name) {
 	assert(name);
 
-	if (strcmp(name, "United States") == 0)
-		return "United States";
-	else if (strcmp(name, "Amazon") == 0)
+	if (strcmp(name, "Amazon") == 0)
 		return "Amazon";
+	else if (strcmp(name, "Digital Ocean") == 0)
+		return "Digital Ocean";
+	else if (strcmp(name, "Linode") == 0)
+		return "Linode";
+	else if (strcmp(name, "Google") == 0)
+		return "Google";
 	return strdup(name);
 }
 
@@ -96,8 +94,7 @@ static inline RNode *addZero(RNode *ptr, char *name) {
 
 
 // add to radix tree
-char *radix_add(uint32_t ip, uint32_t mask, char *name) {
-	assert(name);
+RNode *radix_add(uint32_t ip, uint32_t mask, char *name) {
 	uint32_t m = 0x80000000;
 	uint32_t lastm = 0;
 	if (head == 0) {
@@ -120,17 +117,17 @@ char *radix_add(uint32_t ip, uint32_t mask, char *name) {
 			ptr = addZero(ptr, (valid)? name: NULL);
 	}
 	assert(ptr);
-	if (!ptr->name) {
+	if (name && !ptr->name) {
 		ptr->name = duplicate_name(name);
 		if (!ptr->name)
 			errExit("duplicate_name");
 	}
 
-	return ptr->name;
+	return ptr;
 }
 
 // find last match
-char *radix_longest_prefix_match(uint32_t ip) {
+RNode *radix_longest_prefix_match(uint32_t ip) {
 	if (!head)
 		return NULL;
 
@@ -150,5 +147,113 @@ char *radix_longest_prefix_match(uint32_t ip) {
 			rv = ptr;
 	}
 
-	return (rv)? rv->name: NULL;
+	return rv;
+}
+
+static uint32_t sum;
+static void print(FILE *fp, RNode *ptr, int level, int pkts) {
+	assert(fp);
+	if (!ptr)
+		return;
+	if (ptr->name) {
+		if (pkts) {
+			if (ptr->pkts) {
+				fprintf(fp, "   %d.%d.%d.%d/%d ", PRINT_IP(sum << (32 - level)), level);
+				fprintf(fp, "%s", ptr->name);
+				fprintf(fp, " (%u)\n", ptr->pkts);
+			}
+		}
+		else {
+			fprintf(fp, "%d.%d.%d.%d/%d ", PRINT_IP(sum << (32 - level)), level);
+			fprintf(fp, "%s", ptr->name);
+			fprintf(fp, "\n");
+		}
+	}
+
+	if (ptr->zero == NULL && ptr->one == NULL)
+		return;
+
+	level++;
+	sum <<= 1;
+	print(fp, ptr->zero, level, pkts);
+	sum++;
+	print(fp, ptr->one, level, pkts);
+	sum--;
+	sum >>= 1;
+}
+
+void radix_print(FILE *fp, int pkts) {
+	if (!head)
+		return;
+	sum = 0;
+	print(fp, head->zero, 1, pkts);
+	assert(sum == 0);
+	sum = 1;
+	print(fp, head->one, 1, pkts);
+	assert(sum == 1);
+}
+
+static inline int strnullcmp(const char *a, const char *b) {
+	if (!a || !b)
+		return -1;
+	return strcmp(a, b);
+}
+
+void squash(RNode *ptr, int level) {
+	if (!ptr)
+		return;
+
+	if (ptr->name == NULL &&
+	    ptr->zero && ptr->one &&
+	    strnullcmp(ptr->zero->name, ptr->one->name) == 0 &&
+	    !ptr->zero->zero && !ptr->zero->one &&
+	    !ptr->one->zero && !ptr->one->one) {
+	    	ptr->name = ptr->one->name;
+//		fprintf(stderr, "squashing %d.%d.%d.%d/%d ", PRINT_IP(sum << (32 - level)), level);
+//		fprintf(stderr, "%s\n", ptr->name);
+		ptr->zero = NULL;
+		ptr->one = NULL;
+		radix_nodes--;
+		return;
+	}
+
+	if (ptr->zero == NULL && ptr->one == NULL)
+		return;
+
+	level++;
+	sum <<= 1;
+	squash(ptr->zero, level);
+	sum++;
+	squash(ptr->one, level);
+	sum--;
+	sum >>= 1;
+}
+
+// using stderr for printing
+void radix_squash(void) {
+	if (!head)
+		return;
+
+	sum = 0;
+	squash(head->zero, 1);
+	assert(sum == 0);
+	sum = 1;
+	squash(head->one, 1);
+	assert(sum == 1);
+
+}
+
+static void clear_data(RNode *ptr) {
+	if (!ptr)
+		return;
+	ptr->pkts = 0;
+	clear_data(ptr->zero);
+	clear_data(ptr->one);
+}
+
+void radix_clear_data(void) {
+	if (!head)
+		return;
+	clear_data(head->zero);
+	clear_data(head->one);
 }

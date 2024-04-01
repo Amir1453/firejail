@@ -1,7 +1,10 @@
+.SUFFIXES:
 ROOT = ../..
 -include $(ROOT)/config.mk
 
-PROG = fnettrace-dns
+MOD = fnettrace-dns
+MOD_DIR = $(ROOT)/src/$(MOD)
+PROG = $(MOD_DIR)/$(MOD)
 TARGET = $(PROG)
 
 include $(ROOT)/src/prog.mk

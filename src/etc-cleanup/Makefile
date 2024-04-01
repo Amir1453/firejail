@@ -1,9 +1,10 @@
+.SUFFIXES:
 ROOT = ../..
 -include $(ROOT)/config.mk
 
-PROG = etc-cleanup
+MOD = etc-cleanup
+MOD_DIR = $(ROOT)/src/$(MOD)
+PROG = $(MOD_DIR)/$(MOD)
 TARGET = $(PROG)
-
-MOD_HDRS = ../include/etc_groups.h
 
 include $(ROOT)/src/prog.mk

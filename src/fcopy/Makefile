@@ -1,10 +1,12 @@
+.SUFFIXES:
 ROOT = ../..
 -include $(ROOT)/config.mk
 
-PROG = fcopy
+MOD = fcopy
+MOD_DIR = $(ROOT)/src/$(MOD)
+PROG = $(MOD_DIR)/$(MOD)
 TARGET = $(PROG)
 
-MOD_HDRS = ../include/common.h ../include/syscall.h
-MOD_OBJS = ../lib/common.o
+EXTRA_OBJS = ../lib/common.o
 
 include $(ROOT)/src/prog.mk

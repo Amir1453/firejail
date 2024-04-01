@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -74,6 +74,8 @@ int arg_command = 0;				// -c
 int arg_overlay = 0;				// overlay option
 int arg_overlay_keep = 0;			// place overlay diff in a known directory
 int arg_overlay_reuse = 0;			// allow the reuse of overlays
+
+int arg_landlock_enforce = 0;		// enforce the Landlock ruleset
 
 int arg_seccomp = 0;				// enable default seccomp filter
 int arg_seccomp32 = 0;				// enable default seccomp filter for 32 bit arch
@@ -165,6 +167,7 @@ int arg_tab = 0;
 int login_shell = 0;
 int just_run_the_shell = 0;
 int arg_netlock = 0;
+int arg_restrict_namespaces = 0;
 
 int parent_to_child_fds[2];
 int child_to_parent_fds[2];
@@ -419,7 +422,6 @@ static void run_cmd_and_exit(int i, int argc, char **argv) {
 			exit_err_feature("x11");
 	}
 #endif
-#ifdef HAVE_NETWORK
 	else if (strcmp(argv[i], "--nettrace") == 0) {
 		if (checkcfg(CFG_NETWORK)) {
 			if (getuid() != 0) {
@@ -512,7 +514,7 @@ static void run_cmd_and_exit(int i, int argc, char **argv) {
 	else if (strncmp(argv[i], "--icmptrace=", 12) == 0) {
 		if (checkcfg(CFG_NETWORK)) {
 			if (getuid() != 0) {
-				fprintf(stderr, "Error: -icmptrace is only available to root user\n");
+				fprintf(stderr, "Error: --icmptrace is only available to root user\n");
 				exit(1);
 			}
 			pid_t pid = require_pid(argv[i] + 12);
@@ -523,8 +525,7 @@ static void run_cmd_and_exit(int i, int argc, char **argv) {
 		exit(0);
 	}
 
-
-
+#ifdef HAVE_NETWORK
 	else if (strncmp(argv[i], "--bandwidth=", 12) == 0) {
 		if (checkcfg(CFG_NETWORK)) {
 			logargs(argc, argv);
@@ -1501,6 +1502,20 @@ int main(int argc, char **argv, char **envp) {
 			else
 				exit_err_feature("seccomp");
 		}
+#ifdef HAVE_LANDLOCK
+		else if (strncmp(argv[i], "--landlock.enforce", 18) == 0)
+			arg_landlock_enforce = 1;
+		else if (strncmp(argv[i], "--landlock.fs.read=", 19) == 0)
+			ll_add_profile(LL_FS_READ, argv[i] + 19);
+		else if (strncmp(argv[i], "--landlock.fs.write=", 20) == 0)
+			ll_add_profile(LL_FS_WRITE, argv[i] + 20);
+		else if (strncmp(argv[i], "--landlock.fs.makeipc=", 22) == 0)
+			ll_add_profile(LL_FS_MAKEIPC, argv[i] + 22);
+		else if (strncmp(argv[i], "--landlock.fs.makedev=", 22) == 0)
+			ll_add_profile(LL_FS_MAKEDEV, argv[i] + 22);
+		else if (strncmp(argv[i], "--landlock.fs.execute=", 22) == 0)
+			ll_add_profile(LL_FS_EXEC, argv[i] + 22);
+#endif
 		else if (strcmp(argv[i], "--memory-deny-write-execute") == 0) {
 			if (checkcfg(CFG_SECCOMP))
 				arg_memory_deny_write_execute = 1;
@@ -1508,8 +1523,10 @@ int main(int argc, char **argv, char **envp) {
 				exit_err_feature("seccomp");
 		}
 		else if (strcmp(argv[i], "--restrict-namespaces") == 0) {
-			if (checkcfg(CFG_SECCOMP))
+			if (checkcfg(CFG_SECCOMP)) {
+				arg_restrict_namespaces = 1;
 				profile_list_augment(&cfg.restrict_namespaces, "cgroup,ipc,net,mnt,pid,time,user,uts");
+			}
 			else
 				exit_err_feature("seccomp");
 		}
@@ -1571,7 +1588,7 @@ int main(int argc, char **argv, char **envp) {
 			arg_trace = 1;
 		else if (strncmp(argv[i], "--trace=", 8) == 0) {
 			arg_trace = 1;
-			arg_tracefile = argv[i] + 8;
+			arg_tracefile = expand_macros(argv[i] + 8);
 			if (*arg_tracefile == '\0') {
 				fprintf(stderr, "Error: invalid trace option\n");
 				exit(1);
@@ -1580,13 +1597,6 @@ int main(int argc, char **argv, char **envp) {
 			if (strstr(arg_tracefile, "..") || has_cntrl_chars(arg_tracefile)) {
 				fprintf(stderr, "Error: invalid file name %s\n", arg_tracefile);
 				exit(1);
-			}
-			// if the filename starts with ~, expand the home directory
-			if (*arg_tracefile == '~') {
-				char *tmp;
-				if (asprintf(&tmp, "%s%s", cfg.homedir, arg_tracefile + 1) == -1)
-					errExit("asprintf");
-				arg_tracefile = tmp;
 			}
 		}
 		else if (strcmp(argv[i], "--tracelog") == 0) {
@@ -1819,33 +1829,6 @@ int main(int argc, char **argv, char **envp) {
 				exit_err_feature("overlayfs");
 		}
 #endif
-#ifdef HAVE_FIRETUNNEL
-		else if (strcmp(argv[i], "--tunnel") == 0) {
-			// try to connect to the default client side of the tunnel
-			// if this fails, try the default server side of the tunnel
-			if (access("/run/firetunnel/ftc", R_OK) == 0)
-				profile_read("/run/firetunnel/ftc");
-			else if (access("/run/firetunnel/fts", R_OK) == 0)
-				profile_read("/run/firetunnel/fts");
-			else {
-				fprintf(stderr, "Error: no default firetunnel found, please specify it using --tunnel=devname option\n");
-				exit(1);
-			}
-		}
-		else if (strncmp(argv[i], "--tunnel=", 9) == 0) {
-			char *fname;
-
-			if (asprintf(&fname, "/run/firetunnel/%s", argv[i] + 9) == -1)
-				errExit("asprintf");
-			invalid_filename(fname, 0); // no globbing
-			if (access(fname, R_OK) == 0)
-				profile_read(fname);
-			else {
-				fprintf(stderr, "Error: tunnel not found\n");
-				exit(1);
-			}
-		}
-#endif
 		else if (strncmp(argv[i], "--include=", 10) == 0) {
 			char *ppath = expand_macros(argv[i] + 10);
 			if (!ppath)
@@ -1952,20 +1935,13 @@ int main(int argc, char **argv, char **envp) {
 				}
 
 				// extract chroot dirname
-				cfg.chrootdir = argv[i] + 9;
+				cfg.chrootdir = expand_macros(argv[i] + 9);
 				if (*cfg.chrootdir == '\0') {
 					fprintf(stderr, "Error: invalid chroot option\n");
 					exit(1);
 				}
 				invalid_filename(cfg.chrootdir, 0); // no globbing
 
-				// if the directory starts with ~, expand the home directory
-				if (*cfg.chrootdir == '~') {
-					char *tmp;
-					if (asprintf(&tmp, "%s%s", cfg.homedir, cfg.chrootdir + 1) == -1)
-						errExit("asprintf");
-					cfg.chrootdir = tmp;
-				}
 				// check chroot directory
 				fs_check_chroot_dir();
 			}
@@ -2187,34 +2163,21 @@ int main(int argc, char **argv, char **envp) {
 		else if (strncmp(argv[i], "--name=", 7) == 0) {
 			cfg.name = argv[i] + 7;
 			if (strlen(cfg.name) == 0) {
-				fprintf(stderr, "Error: please provide a name for sandbox\n");
+				fprintf(stderr, "Error: invalid sandbox name: cannot be empty\n");
 				return 1;
 			}
-			if (invalid_name(cfg.name) || has_cntrl_chars(cfg.name)) {
+			if (invalid_name(cfg.name)) {
 				fprintf(stderr, "Error: invalid sandbox name\n");
 				return 1;
 			}
 		}
 		else if (strncmp(argv[i], "--hostname=", 11) == 0) {
 			cfg.hostname = argv[i] + 11;
-			size_t len = strlen(cfg.hostname);
-			if (len == 0 || len > 253) {
-				fprintf(stderr, "Error: please provide a valid hostname for sandbox, with maximum length of 253 ASCII characters\n");
+			if (strlen(cfg.hostname) == 0) {
+				fprintf(stderr, "Error: invalid hostname: cannot be empty\n");
 				return 1;
 			}
-			int invalid = invalid_name(cfg.hostname);
-			char* hostname = cfg.hostname;
-			while (*hostname && !invalid) {
-				invalid = invalid || !(
-						(*hostname >= 'a' && *hostname <= 'z') ||
-						(*hostname >= 'A' && *hostname <= 'Z') ||
-						(*hostname >= '0' && *hostname <= '9') ||
-						(*hostname == '-' || *hostname == '.'));
-				hostname++;
-			}
-			invalid = invalid || cfg.hostname[0] == '-'; // must not start with -
-			invalid = invalid || cfg.hostname[len - 1] == '-'; // must not end with -
-			if (invalid) {
+			if (invalid_name(cfg.hostname)) {
 				fprintf(stderr, "Error: invalid hostname\n");
 				return 1;
 			}
@@ -2760,16 +2723,7 @@ int main(int argc, char **argv, char **envp) {
 		else if (strncmp(argv[i], "--netfilter=", 12) == 0) {
 			if (checkcfg(CFG_NETWORK)) {
 				arg_netfilter = 1;
-				arg_netfilter_file = argv[i] + 12;
-
-				// expand tilde
-				if (*arg_netfilter_file == '~') {
-					char *tmp;
-					if (asprintf(&tmp, "%s%s", cfg.homedir, arg_netfilter_file + 1) == -1)
-						errExit("asprintf");
-					arg_netfilter_file = tmp;
-				}
-
+				arg_netfilter_file = expand_macros(argv[i] + 12);
 				check_netfilter_file(arg_netfilter_file);
 			}
 			else
@@ -2779,16 +2733,7 @@ int main(int argc, char **argv, char **envp) {
 		else if (strncmp(argv[i], "--netfilter6=", 13) == 0) {
 			if (checkcfg(CFG_NETWORK)) {
 				arg_netfilter6 = 1;
-				arg_netfilter6_file = argv[i] + 13;
-
-				// expand tilde
-				if (*arg_netfilter6_file == '~') {
-					char *tmp;
-					if (asprintf(&tmp, "%s%s", cfg.homedir, arg_netfilter6_file + 1) == -1)
-						errExit("asprintf");
-					arg_netfilter6_file = tmp;
-				}
-
+				arg_netfilter6_file = expand_macros(argv[i] + 13);
 				check_netfilter_file(arg_netfilter6_file);
 			}
 			else
@@ -2816,7 +2761,7 @@ int main(int argc, char **argv, char **envp) {
 			// already handled
 		}
 		else if (strncmp(argv[i], "--shell=", 8) == 0) {
-			fprintf(stderr, "Warning: --shell feature has been deprecated\n");
+			fprintf(stderr, "Error: \"shell none\" is done by default now; the \"shell\" command has been removed\n");
 			exit(1);
 		}
 		else if (strcmp(argv[i], "-c") == 0) {
@@ -2847,7 +2792,11 @@ int main(int argc, char **argv, char **envp) {
 			// set sandbox name and start normally
 			cfg.name = argv[i] + 16;
 			if (strlen(cfg.name) == 0) {
-				fprintf(stderr, "Error: please provide a name for sandbox\n");
+				fprintf(stderr, "Error: invalid sandbox name: cannot be empty\n");
+				return 1;
+			}
+			if (invalid_name(cfg.name)) {
+				fprintf(stderr, "Error: invalid sandbox name\n");
 				return 1;
 			}
 		}
@@ -3010,10 +2959,10 @@ int main(int argc, char **argv, char **envp) {
 	}
 	EUID_ASSERT();
 
-	// Note: Only attempt to print non-debug information to stdout after
-	// all profiles have been loaded (because a profile may set arg_quiet)
+	// Note: Only attempt to print non-debug information after all profiles
+	// have been loaded (because a profile may set arg_quiet)
 	if (!arg_quiet)
-		print_version();
+		print_version(stderr);
 
 	// block X11 sockets
 	if (arg_x11_block)
@@ -3223,9 +3172,14 @@ int main(int argc, char **argv, char **envp) {
 
 		gid_t g;
 		if (!arg_nogroups || !check_can_drop_all_groups()) {
-			// add audio group
+			// add audio groups
 			if (!arg_nosound) {
 				g = get_group_id("audio");
+				if (g) {
+					sprintf(ptr, "%d %d 1\n", g, g);
+					ptr += strlen(ptr);
+				}
+				g = get_group_id("pipewire");
 				if (g) {
 					sprintf(ptr, "%d %d 1\n", g, g);
 					ptr += strlen(ptr);

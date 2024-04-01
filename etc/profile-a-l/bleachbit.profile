@@ -7,6 +7,9 @@ include bleachbit.local
 # Persistent global definitions
 include globals.local
 
+# Necessary for BleachBit to erase Trash contents.
+noblacklist ${HOME}/.local/share/Trash
+
 # Allow python (blacklisted by disable-interpreters.inc)
 include allow-python2.inc
 include allow-python3.inc
@@ -15,7 +18,7 @@ include disable-common.inc
 include disable-devel.inc
 include disable-exec.inc
 include disable-interpreters.inc
-# include disable-programs.inc
+#include disable-programs.inc
 
 caps.drop all
 net none
@@ -33,11 +36,11 @@ protocol unix
 seccomp
 
 private-dev
-# private-tmp
+#private-tmp
 
 dbus-user none
 dbus-system none
 
 # memory-deny-write-execute breaks some systems, see issue #1850
-# memory-deny-write-execute
+#memory-deny-write-execute
 restrict-namespaces

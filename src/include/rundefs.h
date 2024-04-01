@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -79,6 +79,8 @@
 #define PATH_SECCOMP_DEBUG_32 		LIBDIR "/firejail/seccomp.debug32"		// 32bit arch debug filter built during make
 #define PATH_SECCOMP_MDWX 		LIBDIR "/firejail/seccomp.mdwx"			// filter for memory-deny-write-execute built during make
 #define PATH_SECCOMP_MDWX_32 		LIBDIR "/firejail/seccomp.mdwx.32"
+#define PATH_SECCOMP_NAMESPACES	LIBDIR "/firejail/seccomp.namespaces"	// filter for restrict-namespaces
+#define PATH_SECCOMP_NAMESPACES_32	LIBDIR "/firejail/seccomp.namespaces.32"
 #define PATH_SECCOMP_BLOCK_SECONDARY 	LIBDIR "/firejail/seccomp.block_secondary"	// secondary arch blocking filter built during make
 
 #define RUN_DEV_DIR			RUN_MNT_DIR "/dev"

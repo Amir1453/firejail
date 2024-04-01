@@ -1,9 +1,10 @@
+.SUFFIXES:
 ROOT = ../..
 -include $(ROOT)/config.mk
 
-PROG = fids
+MOD = fids
+MOD_DIR = $(ROOT)/src/$(MOD)
+PROG = $(MOD_DIR)/$(MOD)
 TARGET = $(PROG)
-
-MOD_HDRS = ../include/common.h
 
 include $(ROOT)/src/prog.mk

@@ -30,14 +30,13 @@ include disable-xdg.inc
 
 whitelist /usr/share/lua*
 whitelist /usr/share/smplayer
-whitelist /usr/share/vulkan
 include whitelist-usr-share-common.inc
 include whitelist-var-common.inc
 
 apparmor
 caps.drop all
 netfilter
-# nogroups
+#nogroups
 noinput
 nonewprivs
 noroot
@@ -50,7 +49,7 @@ private-dev
 private-tmp
 
 # problems with KDE
-# dbus-user none
-# dbus-system none
+#dbus-user none
+#dbus-system none
 
 restrict-namespaces

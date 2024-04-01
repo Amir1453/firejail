@@ -8,9 +8,13 @@ include mov-cli.local
 # added by included profile
 #include globals.local
 
+noblacklist ${HOME}/.config/mov-cli
+
 include disable-proc.inc
 include disable-xdg.inc
 
+mkdir ${HOME}/.config/mov-cli
+whitelist ${HOME}/.config/mov-cli
 include whitelist-run-common.inc
 include whitelist-runuser-common.inc
 
@@ -22,7 +26,7 @@ notv
 disable-mnt
 private-bin ffmpeg,fzf,mov-cli
 #private-cache
-private-etc alsa,alternatives,asound.conf,ca-certificates,crypto-policies,fonts,host.conf,hostname,hosts,ld.so.cache,ld.so.conf,ld.so.conf.d,ld.so.preload,locale,locale.alias,locale.conf,localtime,machine-id,mime.types,nsswitch.conf,pango,pki,protocols,pulse,resolv.conf,rpc,services,ssl,X11,xdg
+private-etc X11,alsa,alternatives,asound.conf,ca-certificates,crypto-policies,fonts,group,host.conf,hostname,hosts,ld.so.cache,ld.so.conf,ld.so.conf.d,ld.so.preload,locale,locale.alias,locale.conf,localtime,machine-id,magic,magic.mgc,mime.types,nsswitch.conf,pango,passwd,pki,protocols,pulse,resolv.conf,rpc,services,ssl,xdg
 private-tmp
 
 # Redirect

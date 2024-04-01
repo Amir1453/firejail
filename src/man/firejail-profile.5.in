@@ -507,6 +507,35 @@ Blacklist all Linux capabilities.
 .TP
 \fBcaps.keep capability,capability,capability
 Whitelist given Linux capabilities.
+#ifdef HAVE_LANDLOCK
+.TP
+\fBlandlock.enforce
+Enforce the Landlock ruleset.
+.PP
+Without it, the other Landlock commands have no effect.
+.TP
+\fBlandlock.fs.read path
+Create a Landlock ruleset (if it doesn't already exist) and add a read access
+rule for path.
+.TP
+\fBlandlock.fs.write path
+Create a Landlock ruleset (if it doesn't already exist) and add a write access
+rule for path.
+.TP
+\fBlandlock.fs.makeipc path
+Create a Landlock ruleset (if it doesn't already exist) and add a rule that
+allows the creation of named pipes (FIFOs) and Unix domain sockets beneath
+the given path.
+.TP
+\fBlandlock.fs.makedev path
+Create a Landlock ruleset (if it doesn't already exist) and add a rule that
+allows the creation of block devices and character devices beneath the given
+path.
+.TP
+\fBlandlock.fs.execute path
+Create a Landlock ruleset (if it doesn't already exist) and add an execution
+permission rule for path.
+#endif
 .TP
 \fBmemory-deny-write-execute
 Install a seccomp filter to block attempts to create memory mappings
@@ -799,11 +828,6 @@ Disable video capture devices.
 .TP
 \fBmachine-id
 Spoof id number in /etc/machine-id file - a new random id is generated inside the sandbox.
-.TP
-\fBshell none
-Run the program directly, without a shell.
-
-
 #ifdef HAVE_NETWORK
 .SH Networking
 Networking features available in profile files.

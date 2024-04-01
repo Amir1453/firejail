@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -326,22 +326,13 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 	}
 	// sandbox name
 	else if (strncmp(ptr, "name ", 5) == 0) {
-		int only_numbers = 1;
 		cfg.name = ptr + 5;
 		if (strlen(cfg.name) == 0) {
-			fprintf(stderr, "Error: invalid sandbox name\n");
+			fprintf(stderr, "Error: invalid sandbox name: cannot be empty\n");
 			exit(1);
 		}
-		const char *c = cfg.name;
-		while (*c) {
-			if (!isdigit(*c)) {
-				only_numbers = 0;
-				break;
-			}
-			++c;
-		}
-		if (only_numbers) {
-			fprintf(stderr, "Error: invalid sandbox name: it only contains digits\n");
+		if (invalid_name(cfg.name)) {
+			fprintf(stderr, "Error: invalid sandbox name\n");
 			exit(1);
 		}
 		return 0;
@@ -380,8 +371,8 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 		arg_caps_drop_all = 1;
 		return 0;
 	}
-	else if (strcmp(ptr, "shell none") == 0) {
-		fprintf(stderr, "Warning: \"shell none\" command in the profile file is done by default; the command will be deprecated\n");
+	else if (strcmp(ptr, "shell ") == 0) {
+		fprintf(stderr, "Warning: \"shell none\" is done by default now; the \"shell\" command has been removed\n");
 		return 0;
 	}
 	else if (strcmp(ptr, "tracelog") == 0) {
@@ -493,7 +484,7 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 #endif
 		return 0;
 	}
-	else if (strncmp("dbus-user ", ptr, 10) == 0) {
+	else if (strncmp(ptr, "dbus-user ", 10) == 0) {
 #ifdef HAVE_DBUSPROXY
 		ptr += 10;
 		if (strcmp("filter", ptr) == 0) {
@@ -560,7 +551,7 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 #endif
 		return 1;
 	}
-	else if (strncmp("dbus-system ", ptr, 12) == 0) {
+	else if (strncmp(ptr, "dbus-system ", 12) == 0) {
 #ifdef HAVE_DBUSPROXY
 		ptr += 12;
 		if (strcmp("filter", ptr) == 0) {
@@ -644,9 +635,7 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 #ifdef HAVE_NETWORK
 		if (checkcfg(CFG_NETWORK)) {
 			arg_netfilter = 1;
-			arg_netfilter_file = strdup(ptr + 10);
-			if (!arg_netfilter_file)
-				errExit("strdup");
+			arg_netfilter_file = expand_macros(ptr + 10);
 			check_netfilter_file(arg_netfilter_file);
 		}
 		else
@@ -658,9 +647,7 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 #ifdef HAVE_NETWORK
 		if (checkcfg(CFG_NETWORK)) {
 			arg_netfilter6 = 1;
-			arg_netfilter6_file = strdup(ptr + 11);
-			if (!arg_netfilter6_file)
-				errExit("strdup");
+			arg_netfilter6_file = expand_macros(ptr + 11);
 			check_netfilter_file(arg_netfilter6_file);
 		}
 		else
@@ -1086,6 +1073,33 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 		return 0;
 	}
 
+#ifdef HAVE_LANDLOCK
+	if (strncmp(ptr, "landlock.enforce", 16) == 0) {
+		arg_landlock_enforce = 1;
+		return 0;
+	}
+	if (strncmp(ptr, "landlock.fs.read ", 17) == 0) {
+		ll_add_profile(LL_FS_READ, ptr + 17);
+		return 0;
+	}
+	if (strncmp(ptr, "landlock.fs.write ", 18) == 0) {
+		ll_add_profile(LL_FS_WRITE, ptr + 18);
+		return 0;
+	}
+	if (strncmp(ptr, "landlock.fs.makeipc ", 20) == 0) {
+		ll_add_profile(LL_FS_MAKEIPC, ptr + 20);
+		return 0;
+	}
+	if (strncmp(ptr, "landlock.fs.makedev ", 20) == 0) {
+		ll_add_profile(LL_FS_MAKEDEV, ptr + 20);
+		return 0;
+	}
+	if (strncmp(ptr, "landlock.fs.execute ", 20) == 0) {
+		ll_add_profile(LL_FS_EXEC, ptr + 20);
+		return 0;
+	}
+#endif
+
 	// memory deny write&execute
 	if (strcmp(ptr, "memory-deny-write-execute") == 0) {
 		if (checkcfg(CFG_SECCOMP))
@@ -1097,8 +1111,10 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 
 	// restrict-namespaces
 	if (strcmp(ptr, "restrict-namespaces") == 0) {
-		if (checkcfg(CFG_SECCOMP))
+		if (checkcfg(CFG_SECCOMP)) {
+			arg_restrict_namespaces = 1;
 			profile_list_augment(&cfg.restrict_namespaces, "cgroup,ipc,net,mnt,pid,time,user,uts");
+		}
 		else
 			warning_feature_disabled("seccomp");
 		return 0;
@@ -1165,6 +1181,14 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 	// hostname
 	if (strncmp(ptr, "hostname ", 9) == 0) {
 		cfg.hostname = ptr + 9;
+		if (strlen(cfg.hostname) == 0) {
+			fprintf(stderr, "Error: invalid hostname: cannot be empty\n");
+			exit(1);
+		}
+		if (invalid_name(cfg.hostname)) {
+			fprintf(stderr, "Error: invalid hostname\n");
+			exit(1);
+		}
 		return 0;
 	}
 
@@ -1647,6 +1671,10 @@ int profile_check_line(char *ptr, int lineno, const char *fname) {
 			// set sandbox name and start normally
 			cfg.name = ptr + 14;
 			if (strlen(cfg.name) == 0) {
+				fprintf(stderr, "Error: invalid sandbox name: cannot be empty\n");
+				exit(1);
+			}
+			if (invalid_name(cfg.name)) {
 				fprintf(stderr, "Error: invalid sandbox name\n");
 				exit(1);
 			}
@@ -1896,8 +1924,7 @@ void profile_read(const char *fname) {
 	fclose(fp);
 }
 
-char *profile_list_normalize(char *list)
-{
+char *profile_list_normalize(char *list) {
 	/* Remove redundant commas.
 	 *
 	 * As result is always shorter than original,

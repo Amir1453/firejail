@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -26,7 +26,10 @@
 #define BUFLEN 4096
 
 char *get_sudo_user(void) {
-	char *user = getenv("SUDO_USER");
+	char *doas_user = getenv("DOAS_USER");
+	char *sudo_user = getenv("SUDO_USER");
+	char *user = doas_user ? doas_user : sudo_user;
+
 	if (!user) {
 		user = getpwuid(getuid())->pw_name;
 		if (!user) {

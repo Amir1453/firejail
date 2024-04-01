@@ -1,6 +1,7 @@
 # Firejail profile for tesseract
 # Description: An OCR program
 # This file is overwritten after every install/update
+quiet
 # Persistent local customizations
 include tesseract.local
 # Persistent global definitions
@@ -26,6 +27,7 @@ include whitelist-common.inc
 include whitelist-run-common.inc
 include whitelist-runuser-common.inc
 whitelist /usr/share/tessdata
+whitelist /usr/share/tesseract-ocr
 include whitelist-usr-share-common.inc
 include whitelist-var-common.inc
 

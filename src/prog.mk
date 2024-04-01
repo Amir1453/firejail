@@ -3,37 +3,26 @@
 # Note: $(ROOT)/config.mk must be included before this file.
 #
 # The includer should probably define PROG and TARGET and may also want to
-# define MOD_HDRS, MOD_SRCS, MOD_OBJS, TOCLEAN and TODISTCLEAN.
+# define EXTRA_OBJS and extend CLEANFILES.
 
-HDRS := $(sort $(wildcard *.h)) $(MOD_HDRS)
-SRCS := $(sort $(wildcard *.c)) $(MOD_SRCS)
-OBJS := $(SRCS:.c=.o) $(MOD_OBJS)
+HDRS :=
+SRCS := $(sort $(wildcard $(MOD_DIR)/*.c))
+OBJS := $(SRCS:.c=.o)
+DEPS := $(sort $(wildcard $(OBJS:.o=.d)))
 
-PROG_CFLAGS = \
-	-ggdb -O2 -DVERSION='"$(VERSION)"' \
-	-Wall -Wextra $(HAVE_FATAL_WARNINGS) \
-	-Wformat -Wformat-security \
-	-fstack-protector-all -D_FORTIFY_SOURCE=2 \
-	-fPIE \
-	-DPREFIX='"$(prefix)"' -DSYSCONFDIR='"$(sysconfdir)/firejail"' \
-	-DLIBDIR='"$(libdir)"' -DBINDIR='"$(bindir)"' \
-	-DVARDIR='"/var/lib/firejail"' \
-	$(HAVE_GCOV) $(MANFLAGS) \
-	$(EXTRA_CFLAGS)
-
-PROG_LDFLAGS = -pie -fPIE -Wl,-z,relro -Wl,-z,now $(EXTRA_LDFLAGS)
+ifeq ($(DEPS),)
+HDRS := $(sort $(wildcard $(MOD_DIR)/*.h $(ROOT)/src/include/*.h))
+endif
 
 .PHONY: all
 all: $(TARGET)
+-include $(DEPS)
 
 %.o : %.c $(HDRS) $(ROOT)/config.mk
-	$(CC) $(PROG_CFLAGS) $(CFLAGS) $(INCLUDE) -c $< -o $@
+	$(CC) $(PROG_CFLAGS) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
-$(PROG): $(OBJS) $(ROOT)/config.mk
-	$(CC) $(PROG_LDFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+$(PROG): $(OBJS) $(EXTRA_OBJS) $(ROOT)/config.mk
+	$(CC) $(PROG_LDFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(EXTRA_OBJS) $(LIBS)
 
 .PHONY: clean
-clean:; rm -fr *.o $(PROG) *.gcov *.gcda *.gcno *.plist $(TOCLEAN)
-
-.PHONY: distclean
-distclean: clean; rm -fr $(TODISTCLEAN)
+clean:; rm -fr $(PROG) $(CLEANFILES)

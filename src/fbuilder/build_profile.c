@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -143,7 +143,6 @@ void build_profile(int argc, char **argv, int index, FILE *fp) {
 		fprintf(fp, "#novideo\t# disable video capture devices\n");
 		build_protocol(trace_output, fp);
 		fprintf(fp, "seccomp !chroot\t# allowing chroot, just in case this is an Electron app\n");
-		fprintf(fp, "shell none\n");
 		fprintf(fp, "#tracelog\t# send blacklist violations to syslog\n");
 		fprintf(fp, "\n");
 

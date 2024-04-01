@@ -1,10 +1,12 @@
+.SUFFIXES:
 ROOT = ../..
 -include $(ROOT)/config.mk
 
-PROG = jailcheck
+MOD = jailcheck
+MOD_DIR = $(ROOT)/src/$(MOD)
+PROG = $(MOD_DIR)/$(MOD)
 TARGET = $(PROG)
 
-MOD_HDRS = ../include/common.h ../include/pid.h
-MOD_OBJS = ../lib/common.o ../lib/pid.o
+EXTRA_OBJS = ../lib/common.o ../lib/pid.o
 
 include $(ROOT)/src/prog.mk

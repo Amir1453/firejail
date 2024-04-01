@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -516,6 +516,21 @@ void start_application(int no_sandbox, int fd, char *set_sandbox_status) {
 		printf("LD_PRELOAD=%s\n", getenv("LD_PRELOAD"));
 	}
 
+#ifdef HAVE_LANDLOCK
+	//****************************
+	// Configure Landlock
+	//****************************
+	if (arg_landlock_enforce && ll_restrict(0)) {
+		// It isn't safe to continue if Landlock self-restriction was
+		// enabled and the "landlock_restrict_self" syscall has failed.
+		fprintf(stderr, "Error: ll_restrict() failed, exiting...\n");
+		exit(1);
+	} else {
+		if (arg_debug)
+			fprintf(stderr, "Not enforcing Landlock\n");
+	}
+#endif
+
 	if (just_run_the_shell) {
 		char *arg[2];
 		arg[0] = cfg.usershell;
@@ -878,7 +893,8 @@ int sandbox(void* sandbox_arg) {
 	//****************************
 	// appimage
 	//****************************
-	appimage_mount();
+	if (arg_appimage)
+		appimage_mount();
 
 	//****************************
 	// private mode
@@ -987,11 +1003,7 @@ int sandbox(void* sandbox_arg) {
 	//****************************
 	// hosts and hostname
 	//****************************
-//	if (cfg.hostname)
 	fs_hostname();
-
-//	if (cfg.hosts_file)
-//		fs_mount_hosts_file();
 
 	//****************************
 	// /etc overrides from the network namespace
@@ -1215,7 +1227,19 @@ int sandbox(void* sandbox_arg) {
 		seccomp_load(RUN_SECCOMP_MDWX_32);
 	}
 
-	if (cfg.restrict_namespaces) {
+	if (arg_restrict_namespaces) {
+		if (arg_seccomp_error_action != EPERM) {
+			seccomp_filter_namespaces(true, cfg.restrict_namespaces);
+			seccomp_filter_namespaces(false, cfg.restrict_namespaces);
+		}
+
+		if (arg_debug)
+			printf("Install namespaces filter\n");
+		seccomp_load(RUN_SECCOMP_NS);	// install filter
+		seccomp_load(RUN_SECCOMP_NS_32);
+
+	}
+	else if (cfg.restrict_namespaces) {
 		seccomp_filter_namespaces(true, cfg.restrict_namespaces);
 		seccomp_filter_namespaces(false, cfg.restrict_namespaces);
 

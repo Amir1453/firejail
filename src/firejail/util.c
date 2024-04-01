@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Firejail Authors
+ * Copyright (C) 2014-2024 Firejail Authors
  *
  * This file is part of firejail project
  *
@@ -206,6 +206,8 @@ static void clean_supplementary_groups(gid_t gid) {
 
 	if (!arg_nosound) {
 		copy_group_ifcont("audio", groups, ngroups,
+		                  new_groups, &new_ngroups, MAX_GROUPS);
+		copy_group_ifcont("pipewire", groups, ngroups,
 		                  new_groups, &new_ngroups, MAX_GROUPS);
 	}
 
@@ -559,10 +561,8 @@ int is_dir(const char *fname) {
 		rv = stat_as_user(fname, &s);
 	else {
 		char *tmp;
-		if (asprintf(&tmp, "%s/", fname) == -1) {
-			fprintf(stderr, "Error: cannot allocate memory, %s:%d\n", __FILE__, __LINE__);
+		if (asprintf(&tmp, "%s/", fname) == -1)
 			errExit("asprintf");
-		}
 		rv = stat_as_user(tmp, &s);
 		free(tmp);
 	}
@@ -1338,6 +1338,13 @@ void close_all(int *keep_list, size_t sz) {
 		if (keep)
 			continue;
 
+#ifdef HAVE_LANDLOCK
+		// Don't close the file descriptor of the Landlock ruleset; it
+		// will be automatically closed by the "ll_restrict" wrapper
+		// function.
+		if (fd == ll_get_fd())
+			continue;
+#endif
 		close(fd);
 	}
 	closedir(dir);
@@ -1476,23 +1483,46 @@ int ascii_isxdigit(unsigned char c) {
 	return ret;
 }
 
-// allow strict ASCII letters and numbers; names with only numbers are rejected; spaces are rejected
+// Note: Keep this in sync with NAME VALIDATION in src/man/firejail.1.in.
+//
+// Allow only ASCII letters, digits and a few special characters; names with
+// only numbers are rejected; spaces and control characters are rejected.
 int invalid_name(const char *name) {
 	const char *c = name;
-
 	int only_numbers = 1;
-	while (*c) {
-		if (!ascii_isalnum(*c))
-			return 1;
-		if (!ascii_isdigit(*c))
-			only_numbers = 0;
-		++c;
-	}
-	if (only_numbers)
+
+	if (strlen(name) > 253)
 		return 1;
 
-	// restrict name to 64 chars max
-	if (strlen(name) > 64)
+	// must start with alnum
+	if (!ascii_isalnum(*c))
+		return 1;
+	if (!ascii_isdigit(*c))
+		only_numbers = 0;
+	++c;
+
+	while (*c) {
+		switch (*c) {
+		case '-':
+		case '.':
+		case '_':
+			only_numbers = 0;
+			break;
+		default:
+			if (!ascii_isalnum(*c))
+				return 1;
+			if (!ascii_isdigit(*c))
+				only_numbers = 0;
+		}
+		++c;
+	}
+
+	// must end with alnum
+	--c;
+	if (!ascii_isalnum(*c))
+		return 1;
+
+	if (only_numbers)
 		return 1;
 
 	return 0;

@@ -1,10 +1,12 @@
+.SUFFIXES:
 ROOT = ../..
 -include $(ROOT)/config.mk
 
-PROG = fsec-optimize
+MOD = fsec-optimize
+MOD_DIR = $(ROOT)/src/$(MOD)
+PROG = $(MOD_DIR)/$(MOD)
 TARGET = $(PROG)
 
-MOD_HDRS = ../include/common.h ../include/seccomp.h ../include/syscall.h
-MOD_OBJS = ../lib/common.o ../lib/errno.o
+EXTRA_OBJS = ../lib/common.o ../lib/errno.o
 
 include $(ROOT)/src/prog.mk

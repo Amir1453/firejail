@@ -1,10 +1,12 @@
+.SUFFIXES:
 ROOT = ../..
 -include $(ROOT)/config.mk
 
-PROG = fnet
+MOD = fnet
+MOD_DIR = $(ROOT)/src/$(MOD)
+PROG = $(MOD_DIR)/$(MOD)
 TARGET = $(PROG)
 
-MOD_HDRS = ../include/common.h ../include/libnetlink.h
-MOD_OBJS = ../lib/common.o ../lib/libnetlink.o
+EXTRA_OBJS = ../lib/common.o ../lib/libnetlink.o
 
 include $(ROOT)/src/prog.mk
